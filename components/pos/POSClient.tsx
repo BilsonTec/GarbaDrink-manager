@@ -1,9 +1,10 @@
 // components/pos/POSClient.tsx
 'use client';
 
-import { useState, useTransition, useMemo } from 'react';
+import { useState, useTransition, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { confirmerVente } from '@/app/actions/ventes';
+import { useOfflineSync } from '@/lib/offline/useOfflineSync';
 
 type Produit = {
   id: string;
@@ -27,8 +28,36 @@ export function POSClient({ produits }: { produits: Produit[] }) {
   const [modePaiement, setModePaiement] = useState<'espece' | 'wave'>('espece');
   const [erreur, setErreur] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isOnline, setIsOnline] = useState(true);
+  const [syncStatus, setSyncStatus] = useState<{
+    syncing: boolean;
+    current: number;
+    total: number;
+    successful: number;
+    failed: number;
+  } | null>(null);
   
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Hook pour gérer la synchronisation offline
+  const { addVenteWithFallback, syncPendingVentes } = useOfflineSync({
+    onSyncStart: () => {
+      setSyncStatus({ syncing: true, current: 0, total: 0, successful: 0, failed: 0 });
+      console.log('[POSClient] Synchronisation commencée');
+    },
+    onSyncProgress: (current, total) => {
+      setSyncStatus((prev) => (prev ? { ...prev, current, total } : null));
+    },
+    onSyncComplete: (successful, failed) => {
+      setSyncStatus((prev) =>
+        prev ? { ...prev, syncing: false, successful, failed } : null
+      );
+      setTimeout(() => setSyncStatus(null), 3000);
+    },
+    onError: (error) => {
+      setErreur(`Erreur de synchronisation: ${error.message}`);
+    },
+  });
 
   const produitsMap = useMemo(
     () => new Map(produits.map((p) => [p.id, p])),
@@ -56,6 +85,26 @@ export function POSClient({ produits }: { produits: Produit[] }) {
     [cart, produitsMap]
   );
 
+  // Écouter les changements de connectivité
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      syncPendingVentes();
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [syncPendingVentes]);
+
   function changerQuantite(produitId: string, delta: number) {
     const produit = produitsMap.get(produitId);
     if (!produit) return;
@@ -72,28 +121,110 @@ export function POSClient({ produits }: { produits: Produit[] }) {
     });
   }
 
-  function handleConfirmer() {
+  async function handleConfirmer() {
     setErreur(null);
     const articles = Object.entries(cart).map(([produitId, quantite]) => ({
       produitId,
       quantite,
     }));
 
-    startTransition(async () => {
-      const result = await confirmerVente(articles, encaissePar, modePaiement);
-      if (!result.success) {
-        setErreur(result.error ?? 'Erreur inconnue.');
-        return;
+    if (navigator.onLine) {
+      // Mode connecté : utiliser l'action Server
+      startTransition(async () => {
+        const result = await confirmerVente(articles, encaissePar, modePaiement);
+        if (!result.success) {
+          setErreur(result.error ?? 'Erreur inconnue.');
+          return;
+        }
+        setCart({});
+        setModalOpen(false);
+        setEncaissePar('moi');
+        setModePaiement('espece');
+      });
+    } else {
+      // Mode offline : utiliser IndexedDB avec sync automatique
+      try {
+        const venteData = {
+          clientId: undefined,
+          items: articles.map((a) => ({
+            productId: a.produitId,
+            quantity: a.quantite,
+            price: produitsMap.get(a.produitId)?.prix_vente || 0,
+          })),
+          total: cartTotal,
+          encaissePar,
+          modePaiement,
+        };
+
+        const result = await addVenteWithFallback(venteData);
+
+        if (result.success) {
+          setCart({});
+          setModalOpen(false);
+          setEncaissePar('moi');
+          setModePaiement('espece');
+          
+          if (result.cached) {
+            setErreur('🔄 Vente enregistrée localement. Synchronisation en attente de réseau...');
+            setTimeout(() => setErreur(null), 4000);
+          }
+        }
+      } catch (error) {
+        setErreur(
+          error instanceof Error ? error.message : 'Erreur lors de l\'enregistrement'
+        );
       }
-      setCart({});
-      setModalOpen(false);
-      setEncaissePar('moi');
-      setModePaiement('espece');
-    });
+    }
   }
 
   return (
     <>
+      {/* Indicateur de statut réseau/sync */}
+      {!isOnline && (
+        <div className="bg-yellow-50 border-b border-yellow-100 px-5 py-3 text-sm font-medium text-yellow-700 flex items-center gap-2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2M5 13l2 2c3.76-3.76 9.48-3.76 13.24 0l2-2"/>
+          </svg>
+          Mode hors-ligne activé - Les ventes seront synchronisées automatiquement
+        </div>
+      )}
+
+      {syncStatus && syncStatus.syncing && (
+        <div className="bg-blue-50 border-b border-blue-100 px-5 py-3 text-sm font-medium text-blue-700 flex items-center gap-2">
+          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          Synchronisation des ventes... ({syncStatus.current}/{syncStatus.total})
+        </div>
+      )}
+
+      {syncStatus && !syncStatus.syncing && (syncStatus.successful > 0 || syncStatus.failed > 0) && (
+        <div className={`${
+          syncStatus.failed === 0
+            ? 'bg-green-50 border-b border-green-100 text-green-700'
+            : 'bg-orange-50 border-b border-orange-100 text-orange-700'
+        } px-5 py-3 text-sm font-medium flex items-center gap-2`}>
+          {syncStatus.failed === 0 ? (
+            <>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              {syncStatus.successful} vente{syncStatus.successful > 1 ? 's ont' : ' a'} été synchronisée{syncStatus.successful > 1 ? 's' : ''}
+            </>
+          ) : (
+            <>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              {syncStatus.successful} OK, {syncStatus.failed} erreur{syncStatus.failed > 1 ? 's' : ''}
+            </>
+          )}
+        </div>
+      )}
+
       {/* En-tête avec recherche */}
       <div className="px-5 pb-4 space-y-3">
         <div className="flex items-center justify-between">
