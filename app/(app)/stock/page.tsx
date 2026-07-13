@@ -2,6 +2,8 @@
 import { createClient } from '@/app/lib/supabase/server';
 import { StockClient } from '@/components/stock/StockClient';
 
+export const revalidate = 15;
+
 export default async function StockPage() {
   const supabase = await createClient();
 

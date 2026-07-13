@@ -2,6 +2,8 @@
 import { createClient } from '@/app/lib/supabase/server';
 import { HistoriqueClient } from '@/components/historique/HistoriqueClient';
 
+export const revalidate = 15;
+
 export default async function HistoriquePage() {
   const supabase = await createClient();
 

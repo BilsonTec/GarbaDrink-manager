@@ -2,14 +2,16 @@
 import { createClient } from '@/app/lib/supabase/server';
 import { POSClient } from '@/components/pos/POSClient';
 
+export const revalidate = 15;
+
 export default async function AccueilPage() {
   const supabase = await createClient();
 
-const { data: produits, error } = await supabase
-  .from('produits')
-  .select('id, nom, prix_vente, stock_actuel, seuil_alerte, image_url')
-  .eq('actif', true)
-  .order('nom');
+  const { data: produits, error } = await supabase
+    .from('produits')
+    .select('id, nom, prix_vente, stock_actuel, seuil_alerte, image_url')
+    .eq('actif', true)
+    .order('nom');
 
   if (error) {
     return (

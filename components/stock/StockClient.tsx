@@ -45,6 +45,18 @@ export function StockClient({
   const [filterStock, setFilterStock] = useState<'all' | 'low' | 'out'>('all');
   const [archivesOuvert, setArchivesOuvert] = useState(false);
 
+  const [rupturesCount, alertesCount] = useMemo(() => {
+    let ruptures = 0;
+    let alertes = 0;
+
+    for (const produit of produits) {
+      if (produit.stock_actuel <= 0) ruptures += 1;
+      else if (produit.stock_actuel <= produit.seuil_alerte) alertes += 1;
+    }
+
+    return [ruptures, alertes] as const;
+  }, [produits]);
+
   const filteredProduits = useMemo(() => {
     let filtered = [...produits];
 
@@ -94,9 +106,6 @@ export function StockClient({
       }
     });
   }
-
-  const rupturesCount = produits.filter((p) => p.stock_actuel <= 0).length;
-  const alertesCount = produits.filter((p) => p.stock_actuel > 0 && p.stock_actuel <= p.seuil_alerte).length;
 
   return (
     <>

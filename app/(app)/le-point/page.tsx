@@ -4,6 +4,8 @@ import { createClient } from '@/app/lib/supabase/server';
 import { formatFCFA } from '@/app/lib/format';
 import { SolderButton } from '@/components/lepoint/SolderButton';
 
+export const revalidate = 15;
+
 export default async function LePointPage() {
   const supabase = await createClient();
 
@@ -22,37 +24,50 @@ export default async function LePointPage() {
 
   const actives = ventes ?? [];
 
-  const especeMoi = actives
-    .filter((v) => v.encaisse_par === 'moi' && v.mode_paiement === 'espece')
-    .reduce((s, v) => s + v.montant_total, 0);
+  const {
+    especeMoi,
+    waveMoi,
+    creanceGarbashawEspece,
+    creanceGarbashawWave,
+    caBrut,
+    coutAchat,
+    hasCreancesEnAttente,
+  } = actives.reduce(
+    (acc, vente) => {
+      const montant = vente.montant_total;
+      const isGarbashaw = vente.encaisse_par === 'garbashaw';
+      const isRecupere = vente.statut_recupere;
+      const isEspece = vente.mode_paiement === 'espece';
 
-  const waveMoi = actives
-    .filter((v) => v.encaisse_par === 'moi' && v.mode_paiement === 'wave')
-    .reduce((s, v) => s + v.montant_total, 0);
+      if (vente.encaisse_par === 'moi') {
+        if (isEspece) acc.especeMoi += montant;
+        else acc.waveMoi += montant;
+      } else if (isGarbashaw && !isRecupere) {
+        if (isEspece) acc.creanceGarbashawEspece += montant;
+        else acc.creanceGarbashawWave += montant;
+      }
 
-  const creanceGarbashawEspece = actives
-    .filter((v) => v.encaisse_par === 'garbashaw' && v.mode_paiement === 'espece' && !v.statut_recupere)
-    .reduce((s, v) => s + v.montant_total, 0);
+      acc.caBrut += montant;
+      acc.hasCreancesEnAttente ||= isGarbashaw && !isRecupere;
+      acc.coutAchat += (vente.ligne_ventes ?? []).reduce(
+        (ss, l) => ss + l.quantite * l.prix_unitaire_achat,
+        0
+      );
 
-  const creanceGarbashawWave = actives
-    .filter((v) => v.encaisse_par === 'garbashaw' && v.mode_paiement === 'wave' && !v.statut_recupere)
-    .reduce((s, v) => s + v.montant_total, 0);
-
-  const caBrut = actives.reduce((s, v) => s + v.montant_total, 0);
-
-  const coutAchat = actives.reduce((s, v) => {
-    const coutLignes = (v.ligne_ventes ?? []).reduce(
-      (ss, l) => ss + l.quantite * l.prix_unitaire_achat,
-      0
-    );
-    return s + coutLignes;
-  }, 0);
+      return acc;
+    },
+    {
+      especeMoi: 0,
+      waveMoi: 0,
+      creanceGarbashawEspece: 0,
+      creanceGarbashawWave: 0,
+      caBrut: 0,
+      coutAchat: 0,
+      hasCreancesEnAttente: false,
+    }
+  );
 
   const beneficeNet = caBrut - coutAchat;
-
-  const hasCreancesEnAttente = actives.some(
-    (v) => v.encaisse_par === 'garbashaw' && !v.statut_recupere
-  );
 
   return (
     <>

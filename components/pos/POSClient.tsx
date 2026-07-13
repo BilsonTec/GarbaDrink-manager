@@ -30,32 +30,42 @@ export function POSClient({ produits }: { produits: Produit[] }) {
   
   const [searchQuery, setSearchQuery] = useState('');
 
+  const produitsMap = useMemo(
+    () => new Map(produits.map((p) => [p.id, p])),
+    [produits]
+  );
+
   const filteredProduits = useMemo(() => {
     if (!searchQuery.trim()) return produits;
 
     const query = searchQuery.toLowerCase().trim();
     return produits.filter(
-      (p) => 
-        p.nom.toLowerCase().includes(query) || 
+      (p) =>
+        p.nom.toLowerCase().includes(query) ||
         p.prix_vente.toString().includes(query)
     );
   }, [produits, searchQuery]);
 
-  const cartCount = Object.values(cart).reduce((s, q) => s + q, 0);
-  const cartTotal = Object.entries(cart).reduce((s, [id, q]) => {
-    const p = produits.find((p) => p.id === id);
-    return s + (p ? p.prix_vente * q : 0);
-  }, 0);
+  const cartCount = useMemo(() => Object.values(cart).reduce((s, q) => s + q, 0), [cart]);
+  const cartTotal = useMemo(
+    () =>
+      Object.entries(cart).reduce((s, [id, q]) => {
+        const p = produitsMap.get(id);
+        return s + (p ? p.prix_vente * q : 0);
+      }, 0),
+    [cart, produitsMap]
+  );
 
   function changerQuantite(produitId: string, delta: number) {
-    const produit = produits.find((p) => p.id === produitId);
+    const produit = produitsMap.get(produitId);
     if (!produit) return;
     setCart((prev) => {
       const actuel = prev[produitId] ?? 0;
       const next = actuel + delta;
       if (next <= 0) {
-        const { [produitId]: _, ...reste } = prev;
-        return reste;
+        const nextState = { ...prev };
+        delete nextState[produitId];
+        return nextState;
       }
       if (next > produit.stock_actuel) return prev;
       return { ...prev, [produitId]: next };
@@ -311,7 +321,7 @@ export function POSClient({ produits }: { produits: Produit[] }) {
             {/* Résumé du panier */}
             <div className="bg-gray-50 rounded-2xl p-3 mb-5 max-h-40 overflow-y-auto">
               {Object.entries(cart).map(([id, qty]) => {
-                const produit = produits.find((p) => p.id === id);
+                const produit = produitsMap.get(id);
                 if (!produit) return null;
                 return (
                   <div key={id} className="flex items-center justify-between py-1.5 text-sm">

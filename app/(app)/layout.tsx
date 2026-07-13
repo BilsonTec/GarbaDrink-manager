@@ -11,12 +11,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { data: produits } = await supabase
   .from('produits')
   .select('id, nom, stock_actuel, seuil_alerte')
-  .eq('actif', true);
+  .eq('actif', true)
+  .order('stock_actuel', { ascending: true });
 
   const alertes = (produits ?? [])
     .filter((p) => p.stock_actuel <= p.seuil_alerte)
-    .map((p) => ({ id: p.id, nom: p.nom, stock: p.stock_actuel, seuil: p.seuil_alerte }))
-    .sort((a, b) => a.stock - b.stock);
+    .map((p) => ({ id: p.id, nom: p.nom, stock: p.stock_actuel, seuil: p.seuil_alerte }));
 
   return (
     <div className="min-h-screen relative pb-24 bg-[#f5f5f7]">
