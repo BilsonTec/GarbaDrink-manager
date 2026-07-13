@@ -2,7 +2,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 
 const TABS = [
   {
@@ -51,6 +52,11 @@ const TABS = [
 
 export function TabBar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    TABS.forEach((tab) => router.prefetch(tab.href));
+  }, [router]);
 
   return (
     <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[420px] bg-white/95 backdrop-blur-lg border-t border-gray-100 flex px-3 pt-2 pb-[calc(8px+env(safe-area-inset-bottom))] z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
@@ -60,9 +66,12 @@ export function TabBar() {
           <Link
             key={tab.href}
             href={tab.href}
+            prefetch
+            scroll={false}
             className={`flex-1 flex flex-col items-center gap-1 py-1 relative group transition-all duration-200 ${
               active ? 'text-red-500' : 'text-gray-400 hover:text-gray-600'
             }`}
+            aria-current={active ? 'page' : undefined}
           >
             {/* Indicateur actif */}
             {active && (

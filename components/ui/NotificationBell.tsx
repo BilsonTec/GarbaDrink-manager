@@ -3,7 +3,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 
-type Alerte = { id: string; nom: string; stock: number; seuil: number };
+type Alerte = { id: string; nom: string; stock: number | null; seuil: number | null };
 
 export function NotificationBell({ alertes }: { alertes: Alerte[] }) {
   const [open, setOpen] = useState(false);
@@ -49,20 +49,23 @@ export function NotificationBell({ alertes }: { alertes: Alerte[] }) {
               <p className="text-sm text-gray-400">Tout est en ordre</p>
             </div>
           ) : (
-            alertes.map((a) => (
-              <div key={a.id} className="px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                <span className="text-sm font-medium text-gray-700">{a.nom}</span>
-                <span
-                  className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                    a.stock === 0 
-                      ? 'bg-red-50 text-red-600' 
-                      : 'bg-amber-50 text-amber-700'
-                  }`}
-                >
-                  {a.stock === 0 ? 'Rupture' : `${a.stock} restant${a.stock > 1 ? 's' : ''}`}
-                </span>
-              </div>
-            ))
+            alertes.map((a) => {
+              const stock = a.stock ?? 0;
+              return (
+                <div key={a.id} className="px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                  <span className="text-sm font-medium text-gray-700">{a.nom}</span>
+                  <span
+                    className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                      stock === 0 
+                        ? 'bg-red-50 text-red-600' 
+                        : 'bg-amber-50 text-amber-700'
+                    }`}
+                  >
+                    {stock === 0 ? 'Rupture' : `${stock} restant${stock > 1 ? 's' : ''}`}
+                  </span>
+                </div>
+              );
+            })
           )}
         </div>
       )}

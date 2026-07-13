@@ -1,23 +1,12 @@
 // app/(app)/stock/page.tsx
-import { createClient } from '@/app/lib/supabase/server';
+import { getProduitsPourStock } from '@/app/lib/supabase/queries';
 import { StockClient } from '@/components/stock/StockClient';
 
 export const revalidate = 15;
 
 export default async function StockPage() {
-  const supabase = await createClient();
-
-  const { data: produitsActifs, error: erreurActifs } = await supabase
-    .from('produits')
-    .select('id, nom, prix_achat, prix_vente, stock_actuel, seuil_alerte, image_url')
-    .eq('actif', true)
-    .order('nom');
-
-  const { data: produitsArchives, error: erreurArchives } = await supabase
-    .from('produits')
-    .select('id, nom, prix_achat, prix_vente, stock_actuel, seuil_alerte, image_url')
-    .eq('actif', false)
-    .order('nom');
+  const { data: produitsActifs, error: erreurActifs } = await getProduitsPourStock(true);
+  const { data: produitsArchives, error: erreurArchives } = await getProduitsPourStock(false);
 
   if (erreurActifs || erreurArchives) {
     return (

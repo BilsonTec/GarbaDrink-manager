@@ -24,19 +24,31 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
-
   const isLoginPage = request.nextUrl.pathname.startsWith('/login');
+  const hasAuthCookie = request.cookies.getAll().some(({ name }) => /auth|session/i.test(name));
+
+  if (!hasAuthCookie) {
+    if (!isLoginPage) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      return NextResponse.redirect(url);
+    }
+
+    return response;
+  }
+
+  const { data: { session } } = await supabase.auth.getSession();
+  const isAuthenticated = Boolean(session?.user);
 
   // Pas connecté et pas sur /login → redirige vers /login
-  if (!user && !isLoginPage) {
+  if (!isAuthenticated && !isLoginPage) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
   }
 
   // Déjà connecté et sur /login → redirige vers l'accueil
-  if (user && isLoginPage) {
+  if (isAuthenticated && isLoginPage) {
     const url = request.nextUrl.clone();
     url.pathname = '/';
     return NextResponse.redirect(url);

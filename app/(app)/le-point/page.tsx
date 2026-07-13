@@ -1,28 +1,27 @@
 /* eslint-disable react/no-unescaped-entities */
 // app/(app)/le-point/page.tsx
-import { createClient } from '@/app/lib/supabase/server';
+import { getVentesLePoint } from '@/app/lib/supabase/queries';
 import { formatFCFA } from '@/app/lib/format';
 import { SolderButton } from '@/components/lepoint/SolderButton';
 
 export const revalidate = 15;
 
-export default async function LePointPage() {
-  const supabase = await createClient();
+type VenteLePoint = {
+  montant_total: number;
+  encaisse_par: string;
+  mode_paiement: string;
+  statut_recupere: boolean;
+  ligne_ventes?: Array<{ quantite: number; prix_unitaire_achat: number }>;
+};
 
-  // On récupère chaque vente active avec ses lignes (jointure via la FK
-  // ligne_ventes.vente_id -> ventes.id, détectée automatiquement par Supabase).
-  const { data: ventes, error } = await supabase
-    .from('ventes')
-    .select(
-      'id, montant_total, encaisse_par, mode_paiement, statut_recupere, ligne_ventes(quantite, prix_unitaire_achat)'
-    )
-    .eq('annulee', false);
+export default async function LePointPage() {
+  const { data: ventes, error } = await getVentesLePoint();
 
   if (error) {
     return <p className="px-5 text-sm text-[#ff1111]">Erreur : {error.message}</p>;
   }
 
-  const actives = ventes ?? [];
+  const actives = (ventes ?? []) as VenteLePoint[];
 
   const {
     especeMoi,

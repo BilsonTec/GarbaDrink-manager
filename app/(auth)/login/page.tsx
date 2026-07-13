@@ -6,6 +6,11 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/app/lib/supabase/client';
 import Image from 'next/image';
 
+type SignInResponse = {
+  data: { session: unknown } | null;
+  error: { message?: string } | null;
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const supabase = createClient();
@@ -32,7 +37,7 @@ export default function LoginPage() {
         setTimeout(() => reject(new Error('Connexion expirée')), 20000)
       );
       const loginPromise = supabase.auth.signInWithPassword({ email, password });
-      const { data, error } = (await Promise.race([loginPromise, timeoutPromise])) as any;
+      const { data, error } = (await Promise.race([loginPromise, timeoutPromise])) as SignInResponse;
 
       if (error) {
         setError(error.message || 'Erreur de connexion.');

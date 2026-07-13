@@ -1,22 +1,12 @@
 // app/(app)/layout.tsx
 import Image from 'next/image';
-import { createClient } from '@/app/lib/supabase/server';
+import { getAlertesStock } from '@/app/lib/supabase/queries';
 import { UserMenu } from '@/components/ui/UserMenu';
 import { NotificationBell } from '@/components/ui/NotificationBell';
 import { TabBar } from '@/components/ui/TabBar';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-
-  const { data: produits } = await supabase
-  .from('produits')
-  .select('id, nom, stock_actuel, seuil_alerte')
-  .eq('actif', true)
-  .order('stock_actuel', { ascending: true });
-
-  const alertes = (produits ?? [])
-    .filter((p) => p.stock_actuel <= p.seuil_alerte)
-    .map((p) => ({ id: p.id, nom: p.nom, stock: p.stock_actuel, seuil: p.seuil_alerte }));
+  const { data: alertes } = await getAlertesStock();
 
   return (
     <div className="min-h-screen relative pb-24 bg-[#f5f5f7]">
@@ -33,7 +23,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         
         {/* Actions à droite */}
         <div className="flex items-center gap-1">
-          <NotificationBell alertes={alertes} />
+          <NotificationBell alertes={alertes ?? []} />
           <UserMenu />
         </div>
       </header>

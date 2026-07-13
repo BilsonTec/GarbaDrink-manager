@@ -10,7 +10,7 @@ type LigneVente = {
   produits: { nom: string }[] | null;
 };
 
-type Vente = {
+export type Vente = {
   id: string;
   montant_total: number;
   encaisse_par: 'moi' | 'garbashaw';
